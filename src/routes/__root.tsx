@@ -11,24 +11,24 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { ShieldCheck } from "lucide-react";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
+        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Error 404</p>
+        <h1 className="mt-3 text-4xl font-semibold text-foreground">Page not found</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
+          The resource you requested is not available in this workspace.
         </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Go home
-          </Link>
-        </div>
+        <Link
+          to="/"
+          className="mt-6 inline-flex items-center justify-center rounded-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Return to console
+        </Link>
       </div>
     </div>
   );
@@ -44,27 +44,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <h1 className="text-xl font-semibold text-foreground">Operation failed</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+        <div className="mt-6 flex justify-center gap-2">
           <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            onClick={() => { router.invalidate(); reset(); }}
+            className="rounded-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            Try again
+            Retry
           </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Go home
+          <a href="/" className="rounded-sm border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-accent">
+            Home
           </a>
         </div>
       </div>
@@ -77,20 +67,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Incident Response Commander" },
+      { name: "description", content: "AI-assisted cyber incident response platform for security operations teams." },
+      { property: "og:title", content: "Incident Response Commander" },
+      { property: "og:description", content: "AI-assisted cyber incident response platform for security operations teams." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" },
     ],
   }),
   shellComponent: RootShell,
@@ -102,9 +89,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
+      <head><HeadContent /></head>
       <body>
         {children}
         <Scripts />
@@ -113,13 +98,47 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function TopBar() {
+  return (
+    <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
+        <Link to="/" className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center bg-brand text-brand-foreground">
+            <ShieldCheck className="h-4 w-4" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold tracking-tight">Incident Response Commander</span>
+            <span className="hidden font-mono text-[10px] uppercase tracking-widest text-muted-foreground sm:inline">v1.0</span>
+          </div>
+        </Link>
+        <nav className="flex items-center gap-1 text-sm">
+          <Link to="/" className="rounded-sm px-3 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" activeProps={{ className: "rounded-sm px-3 py-1.5 text-foreground bg-accent" }} activeOptions={{ exact: true }}>
+            Overview
+          </Link>
+          <Link to="/analyze" className="rounded-sm px-3 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" activeProps={{ className: "rounded-sm px-3 py-1.5 text-foreground bg-accent" }}>
+            Analyze
+          </Link>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <div className="flex min-h-screen flex-col">
+        <TopBar />
+        <main className="flex-1"><Outlet /></main>
+        <footer className="border-t border-border bg-surface">
+          <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-mono uppercase tracking-widest">Incident Response Commander</p>
+            <p>Enterprise SOC platform — AI-assisted triage, containment, and recovery.</p>
+          </div>
+        </footer>
+      </div>
+      <Toaster />
     </QueryClientProvider>
   );
 }
