@@ -7,89 +7,132 @@ const InputSchema = z.object({
   description: z.string().trim().min(10).max(4000),
 });
 
-export type IncidentAnalysis = {
-  severityLevel: "Low" | "Medium" | "High" | "Critical";
-  riskScore: number;
-  immediateActions: string[];
-  containmentPlan: string[];
-  eradicationPlan: string[];
-  recoveryPlan: string[];
+export type IncidentSections = {
+  severityLevel: string;
+  riskScore: string;
+  incidentClassification: string;
+  immediateActions: string;
+  containmentPlan: string;
+  eradicationPlan: string;
+  recoveryPlan: string;
   executiveSummary: string;
-  lessonsLearned: string[];
+  lessonsLearned: string;
 };
+
+export type IncidentAnalysis = {
+  raw: string;
+  sections: IncidentSections;
+};
+
+const SECTION_KEYS: Array<{ key: keyof IncidentSections; heading: RegExp }> = [
+  { key: "severityLevel", heading: /^severity level/i },
+  { key: "riskScore", heading: /^risk score/i },
+  { key: "incidentClassification", heading: /^incident classification/i },
+  { key: "immediateActions", heading: /^immediate actions/i },
+  { key: "containmentPlan", heading: /^containment plan/i },
+  { key: "eradicationPlan", heading: /^eradication plan/i },
+  { key: "recoveryPlan", heading: /^recovery plan/i },
+  { key: "executiveSummary", heading: /^executive summary/i },
+  { key: "lessonsLearned", heading: /^lessons learned/i },
+];
+
+function parseSections(markdown: string): IncidentSections {
+  const lines = markdown.split(/\r?\n/);
+  const sections: Partial<Record<keyof IncidentSections, string[]>> = {};
+  let current: keyof IncidentSections | null = null;
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^#{1,6}\s+(.+?)\s*$/);
+    if (headingMatch) {
+      const title = headingMatch[1].trim();
+      const found = SECTION_KEYS.find((s) => s.heading.test(title));
+      if (found) {
+        current = found.key;
+        sections[current] = [];
+        continue;
+      }
+    }
+    if (current) {
+      (sections[current] ||= []).push(line);
+    }
+  }
+
+  const out = {} as IncidentSections;
+  for (const { key } of SECTION_KEYS) {
+    out[key] = (sections[key] ?? []).join("\n").trim();
+  }
+  return out;
+}
 
 export const analyzeIncident = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data }) => {
-    const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) throw new Error("AI service is not configured");
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
 
-    const system = `You are a senior cyber incident response commander trained on NIST SP 800-61 r2 and SANS PICERL. Produce concise, operationally specific guidance for an enterprise SOC. Avoid filler. Return strictly valid JSON matching the requested tool schema.`;
+    const systemPrompt = `You are a senior cybersecurity incident response commander with expertise in NIST 800-61, ISO 27035 and enterprise SOC operations.
 
-    const user = `Incident Type: ${data.incidentType}
-Organization Size: ${data.orgSize}
-Description:
+Analyze the following incident.
+
+Incident Type:
+${data.incidentType}
+
+Organization Size:
+${data.orgSize}
+
+Incident Description:
 ${data.description}
 
-Produce a complete incident response plan.`;
+Generate a professional cybersecurity response report.
 
-    const body = {
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "incident_response_plan",
-            description: "Structured incident response plan",
-            parameters: {
-              type: "object",
-              properties: {
-                severityLevel: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
-                riskScore: { type: "number" },
-                immediateActions: { type: "array", items: { type: "string" } },
-                containmentPlan: { type: "array", items: { type: "string" } },
-                eradicationPlan: { type: "array", items: { type: "string" } },
-                recoveryPlan: { type: "array", items: { type: "string" } },
-                executiveSummary: { type: "string" },
-                lessonsLearned: { type: "array", items: { type: "string" } },
-              },
-              required: [
-                "severityLevel", "riskScore", "immediateActions", "containmentPlan",
-                "eradicationPlan", "recoveryPlan", "executiveSummary", "lessonsLearned",
-              ],
-              additionalProperties: false,
-            },
-          },
-        },
-      ],
-      tool_choice: { type: "function", function: { name: "incident_response_plan" } },
-    };
+Return ONLY in the following format:
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+# Severity Level
+
+# Risk Score (0-100)
+
+# Incident Classification
+
+# Immediate Actions
+
+# Containment Plan
+
+# Eradication Plan
+
+# Recovery Plan
+
+# Executive Summary
+
+# Lessons Learned`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+    const res = await fetch(url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
+      }),
     });
 
     if (!res.ok) {
-      if (res.status === 429) throw new Error("Rate limit exceeded. Please try again shortly.");
-      if (res.status === 402) throw new Error("AI credits exhausted. Please add credits to continue.");
       const t = await res.text();
-      console.error("AI gateway error:", res.status, t);
-      throw new Error("AI analysis failed");
+      console.error("Gemini error:", res.status, t);
+      throw new Error(`Gemini API failed (${res.status})`);
     }
 
     const json = await res.json();
-    const call = json.choices?.[0]?.message?.tool_calls?.[0];
-    const argsStr = call?.function?.arguments;
-    if (!argsStr) throw new Error("AI returned no structured response");
-    const parsed = JSON.parse(argsStr) as IncidentAnalysis;
+    const text: string | undefined = json?.candidates?.[0]?.content?.parts
+      ?.map((p: { text?: string }) => p.text ?? "")
+      .join("")
+      .trim();
+
+    if (!text) throw new Error("Gemini returned an empty response");
+
+    const sections = parseSections(text);
+
     return {
-      analysis: parsed,
+      analysis: { raw: text, sections } satisfies IncidentAnalysis,
       meta: {
         incidentType: data.incidentType,
         orgSize: data.orgSize,
